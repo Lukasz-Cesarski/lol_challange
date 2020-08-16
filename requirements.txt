@@ -1,9 +1,8 @@
 numpy
 pandas
 matplotlib
-seaborn
 scipy
-torch
-torchvision
 jupyterlab
 scikit-image
+scikit-learn
+opencv-contrib-python

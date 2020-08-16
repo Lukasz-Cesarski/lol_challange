@@ -53,6 +53,36 @@ THRESHOLD_FUNCTION = {
     TM_CCOEFF_NORMED: np.greater_equal
 }
 
+THRESHOLDS = {
+    (TM_SQDIFF, "l"): 70_000,
+    (TM_SQDIFF, "t"): 200_000,
+    (TM_SQDIFF, "r"): 40_000,
+    (TM_SQDIFF, "b"): 200_000,
+    (TM_CCORR_NORMED, "l"): 0.95,
+    (TM_CCORR_NORMED, "t"): 0.95,
+    (TM_CCORR_NORMED, "r"): 0.95,
+    (TM_CCORR_NORMED, "b"): 0.95,
+}
+
+EDGES = ("l", "t", "r", "b")
+
+HEART_DELTA = {
+    "l": (0, 0),
+    "t": (0, -2),
+    "r": (2, 130),
+    "b": (22, -2)
+}
+
+RECTANGLE_TOLERANCE = 2
+
+COLORS = [
+    (255, 0, 0, 255),
+    (0, 255, 0, 255),
+    (0, 0, 255, 255),
+    (0, 255, 255, 255),
+    (255, 0, 255, 255),
+    (128, 128, 128, 255)
+]
 
 def read_image_path(image_path):
     image = io.imread(image_path)
@@ -231,38 +261,6 @@ EDGES_SUPPRESSION = {
 }
 
 
-def make_match(image_path, template, method_name, threshold, suppression, plot=True, save=True, mask=None):
-    method = NAME_TO_METHOD[method_name]
-    if ALLOW_MASK[method] is False:
-        assert mask is None, f"Method {method_name} does not support masking!"
-    threshold_function = THRESHOLD_FUNCTION[method]
-    image, _, df_health_bars = read_image_path(image_path)
-    #TODO jpg 3 channels, png 4 channels
-    image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
-    h, w = template_gray.shape
-    res = cv2.matchTemplate(image=image_gray, templ=template_gray, method=method, mask=mask)
-    img_result = image.copy()
-    loc = np.where(threshold_function(res, threshold))
-    #TODO if nothing found
-    suppr_loc = suppression(loc)
-    matches_num = len(suppr_loc[0])
-    for pt in zip(*suppr_loc[::-1]):
-        cv2.rectangle(img_result, pt, (pt[0] + w, pt[1] + h), (255, 255, 255), 1)
-
-    image_name = os.path.splitext(os.path.basename(image_path))[0]
-    result_name = f'{image_name}_{method_name}_t_{threshold}_m_{matches_num}.jpg'
-    result_path = os.path.join(RESULTS_DIR, result_name)
-    if plot:
-        fig, ax = plt.subplots(figsize=(16, 10))
-        ax.imshow(img_result)
-        ax.set_title(f"Method={method_name}, threshold={threshold}, Loc={matches_num}")
-        # if save:
-        #     fig.savefig(result_path)
-    if save:
-        cv2.imwrite(result_path, img_result)
-
-
 def get_template_paths(edge_name):
     template_path = os.path.join(TEMPLATES_DIR, f"{edge_name}_template.npy")
     mask_path = os.path.join(TEMPLATES_DIR, f"{edge_name}_mask.txt")
@@ -283,3 +281,104 @@ def read_template(edge_name):
     return template, mask
 
 
+def find_matches(image_path, edge_name, method_name):
+    method = NAME_TO_METHOD[method_name]
+    template, mask = read_template(edge_name)
+    if ALLOW_MASK[method] is False:
+        mask = None
+        print("mask is not used!")
+    threshold = THRESHOLDS[(method, edge_name)]
+    suppression = EDGES_SUPPRESSION[edge_name]
+    threshold_function = THRESHOLD_FUNCTION[method]
+    image, _, df_health_bars = read_image_path(image_path)
+
+    # TODO jpg 3 channels, png 4 channels
+    image_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+    h, w = template_gray.shape
+    res = cv2.matchTemplate(image=image_gray, templ=template_gray, method=method, mask=mask)
+    loc = np.where(threshold_function(res, threshold))
+    # TODO if nothing found anything
+    suppr_loc = suppression(loc)
+    return suppr_loc, image, h, w, threshold
+
+
+def plot_match(image_path, edge_name, method_name, plot=True, save=True):
+    suppr_loc, image, h, w, threshold = find_matches(image_path, edge_name, method_name)
+    img_result = image.copy()
+    matches_num = len(suppr_loc[0])
+    for pt in zip(*suppr_loc[::-1]):
+        cv2.rectangle(img_result, pt, (pt[0] + w, pt[1] + h), (255, 255, 255, 255), 1)
+
+    image_name = os.path.splitext(os.path.basename(image_path))[0]
+    result_name = f'{image_name}_{edge_name}_{method_name}_t_{threshold}_m_{matches_num}.jpg'
+    result_path = os.path.join(RESULTS_DIR, result_name)
+    if plot:
+        fig, ax = plt.subplots(figsize=(16, 10))
+        ax.imshow(img_result)
+        ax.set_title(f"Edge={edge_name}, Method={method_name}, threshold={threshold}, Loc={matches_num}")
+    if save:
+        cv2.imwrite(result_path, img_result)
+
+
+def build_rectangles(edges_found):
+    all_rectangles = []
+    edges_coords = {}
+    for k, (loc, h, v) in edges_found.items():
+        edges_coords[k] = [(y, x) for y, x in zip(*loc)]
+
+    while True:
+        heart_candidates = [(edge_name, p) for edge_name, point_list in edges_coords.items() for p in point_list]
+        if heart_candidates:
+            pass
+        else:
+            break
+        heart_edge_name, (heart_y, heart_x) = heart_candidates[0]
+        heart_y -= HEART_DELTA[heart_edge_name][0]
+        heart_x -= HEART_DELTA[heart_edge_name][1]
+
+        rectangle = []
+        for edge_name in EDGES:
+            close_edge = None
+            for e in edges_coords[edge_name]:
+                dy = abs(e[0] - heart_y - HEART_DELTA[edge_name][0])
+                # print('dy', dy)
+                dx = abs(e[1] - heart_x - HEART_DELTA[edge_name][1])
+                # print('dx', dx)
+                if max(dy, dx) <= RECTANGLE_TOLERANCE:
+                    close_edge = e
+                    edges_coords[edge_name].remove(e)
+                    break
+            rectangle.append(close_edge)
+        all_rectangles.append(rectangle)
+
+    return all_rectangles
+
+
+def plot_rectangles(image_path, method_name, plot=True, save=True):
+    edges_found = {}
+    edge_dimensions = []
+    for edge_name in EDGES:
+        suppr_loc, image, h, w, threshold = find_matches(image_path, edge_name, method_name)
+        edges_found[edge_name] = (suppr_loc, h, w)
+        edge_dimensions.append((h, w))
+
+    all_rectangles = build_rectangles(edges_found)
+    rect_amount = len(all_rectangles)
+
+    img_result = image.copy()
+    for rectangle, color in zip(all_rectangles, COLORS):
+        for point, (h, w) in zip(rectangle, edge_dimensions):
+            if point is not None:
+                y, x = point
+                cv2.rectangle(img_result, (x, y), (x + w, y + h), color, -1)
+
+    image_name = os.path.splitext(os.path.basename(image_path))[0]
+    result_name = f'REC_{image_name}_{method_name}_rect_{rect_amount}.jpg'
+    result_path = os.path.join(RESULTS_DIR, result_name)
+    if plot:
+        fig, ax = plt.subplots(figsize=(16, 10))
+        ax.imshow(img_result)
+        ax.set_title(f"Rectangles={rect_amount}, Method={method_name}")
+    if save:
+        cv2.imwrite(result_path, img_result)
