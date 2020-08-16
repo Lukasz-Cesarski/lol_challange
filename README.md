@@ -16,3 +16,5 @@ You can check the results in notebook `06-RECTANGLES.ipynb` or in the `results/`
 Each edge of rectangle corrresponds to one edge of healthbar found in the image.
 
 ![Result](results/REC_screen2_TM_SQDIFF_rect_6.jpg)
+
+### 4. Take your own screen shot

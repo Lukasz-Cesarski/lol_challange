@@ -1,3 +1,11 @@
+"""
+EsportsLABgg League Vision Challenge
+
+How to use:
+python lol_core.py <path_to_image>
+python lol_core.py starter/task_examples/screen1.jpg
+"""
+
 import argparse
 import os
 from typing import Dict, List, Optional, Tuple
