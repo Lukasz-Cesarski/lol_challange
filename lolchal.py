@@ -84,6 +84,7 @@ COLORS = [
     (128, 128, 128, 255)
 ]
 
+
 def read_image_path(image_path):
     image = io.imread(image_path)
     health_bars_save_path = os.path.join(HEALTH_BARS_DIR,
@@ -187,7 +188,7 @@ def scatter_edges_map(correct_edges, ref_edges, other_edges, hasher, model):
     ax.plot(other_proj[:, 0], other_proj[:, 1], ".y", label="other")
     ax.legend()
 
-
+#TODO arrays may not be sorted!
 def vertical_suppression(loc):
     """
     IN: (array([ 63,  64,  83,  84,  85, 103, 104, 105, 179, 190, 191, 192]),
@@ -318,7 +319,7 @@ def plot_match(image_path, edge_name, method_name, plot=True, save=True):
         ax.imshow(img_result)
         ax.set_title(f"Edge={edge_name}, Method={method_name}, threshold={threshold}, Loc={matches_num}")
     if save:
-        cv2.imwrite(result_path, img_result)
+        cv2.imwrite(result_path, cv2.cvtColor(img_result, cv2.COLOR_RGB2BGR))
 
 
 def build_rectangles(edges_found):
@@ -381,4 +382,4 @@ def plot_rectangles(image_path, method_name, plot=True, save=True):
         ax.imshow(img_result)
         ax.set_title(f"Rectangles={rect_amount}, Method={method_name}")
     if save:
-        cv2.imwrite(result_path, img_result)
+        cv2.imwrite(result_path, cv2.cvtColor(img_result, cv2.COLOR_RGB2BGR))
